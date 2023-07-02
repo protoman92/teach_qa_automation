@@ -1,7 +1,9 @@
-describe("template spec", () => {
+describe("Login page", () => {
   beforeEach(() => {
-    cy.visit("https://vinhyuki95.github.io/myPortfolio");
+    cy.visit("https://practicetestautomation.com/practice-test-login");
   });
 
-  it("passes", () => {});
+  it("Positive LogIn test", () => {
+    cy.get("#username").type("student");
+  });
 });
