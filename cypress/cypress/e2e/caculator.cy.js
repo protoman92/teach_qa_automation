@@ -9,4 +9,12 @@ describe("Caculator", () => {
     cy.get("div[title='=']").click();
     cy.get("div[title='CView']").invoke("text").should("equal", "9");
   });
+  it("Positive: subtraction two numbers", () => {
+    cy.get("div[title=1]").click();
+    cy.get("div[title=0]").click();
+    cy.get("div[title='-']").click();
+    cy.get("div[title='4']").click();
+    cy.get("div[title='=']").click();
+    cy.get("div[title=CView]").invoke("text").should("equal", "6");
+  });
 });
