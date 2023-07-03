@@ -17,4 +17,13 @@ describe("Caculator", () => {
     cy.get("div[title='=']").click();
     cy.get("div[title=CView]").invoke("text").should("equal", "6");
   });
+  it("Positive: multiplication two numbers", () => {
+    cy.get("div[title=1]").click();
+    cy.get("div[title=2]").click();
+    cy.get("div[title='*']").click();
+    cy.get("div[title='1']").click();
+    cy.get("div[title='2']").click();
+    cy.get("div[title='=']").click();
+    cy.get("div[title=CView]").invoke("text").should("equal", "144");
+  });
 });
