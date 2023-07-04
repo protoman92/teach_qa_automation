@@ -34,4 +34,11 @@ describe("Caculator", () => {
     cy.get("div[title='=']").click();
     cy.get("div[title=CView]").invoke("text").should("equal", "5");
   });
+  it("Negative:division two numbers", () => {
+    cy.get("div[title=1]").click();
+    cy.get("div[title='/']").click();
+    cy.get("div[title='0'").click();
+    cy.get("div[title='=']").click();
+    cy.get("div[title='CView']").invoke("text").should("equal", "Infinity");
+  });
 });
