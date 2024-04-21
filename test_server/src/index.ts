@@ -1,20 +1,20 @@
 // @ts-check
 import assert from "assert";
-import { ObjectId } from "bson";
 import dotenv from "dotenv";
 import express, { NextFunction, Request, Response } from "express";
-import { MongoClient, MongoServerError } from "mongodb";
-import { type User } from "./interface";
-import { CONSTANTS, createUserValidator, keyof } from "./utils";
 import { StatusCodes } from "http-status-codes";
+import { Sequelize, UniqueConstraintError } from "sequelize";
+import UserModel, { init as initUserModel } from "./model/user";
+import { HttpError, createUserValidator } from "./utils";
 
 dotenv.config({});
 
-const mongodbUri = process.env.MONGODB_URI;
-assert(mongodbUri !== undefined, "MongoDB URI not found");
+const sqlUri = process.env.SQL_URI;
+assert(sqlUri !== undefined, "SQL_URI not found");
 
-const mongoClient = new MongoClient(mongodbUri);
-let mongodb: ReturnType<(typeof mongoClient)["db"]>;
+const sqlClient = new Sequelize(sqlUri, {
+  logging: false,
+});
 
 const app = express();
 
@@ -37,13 +37,16 @@ async function handleErrorWithinMiddleware(
 
 app.get("/api/v1/user/:id", async (req, res, next) => {
   await handleErrorWithinMiddleware(async () => {
-    const user = await mongodb
-      .collection<User>(CONSTANTS.MONGODB_COLLECTION_USER)
-      .findOne({
-        _id: new ObjectId(req.params.id),
-      });
+    const userModel = await UserModel.findByPk(req.params.id);
 
-    res.json(user);
+    if (userModel === null) {
+      throw new HttpError(
+        StatusCodes.NOT_FOUND,
+        new Error("Record does not exist")
+      );
+    }
+
+    res.json(userModel.toJSON());
   }, next);
 });
 
@@ -53,30 +56,37 @@ app.post("/api/v1/users", async (req, res, next) => {
       createUserValidator.validate(req.body);
 
     if (valiationError !== undefined) {
-      res.status(StatusCodes.BAD_REQUEST).send(valiationError.message);
-      return;
+      throw new HttpError(StatusCodes.BAD_REQUEST, valiationError);
     }
 
     assert(createUserData !== undefined);
 
-    const { insertedId } = await mongodb
-      .collection<User>(CONSTANTS.MONGODB_COLLECTION_USER)
-      .insertOne(createUserData);
-
-    const user = await mongodb
-      .collection<User>(CONSTANTS.MONGODB_COLLECTION_USER)
-      .findOne({
-        _id: insertedId,
+    try {
+      const userModel = await UserModel.create(createUserData, {
+        returning: true,
+        validate: true,
       });
 
-    res.json(user);
+      res.json(userModel.toJSON());
+    } catch (error) {
+      if (error instanceof UniqueConstraintError) {
+        throw new HttpError(StatusCodes.CONFLICT, error);
+      } else {
+        throw error;
+      }
+    }
   }, next);
 });
 
 app.use(
   (err: Error, _req: Request, res: Response, _next: NextFunction): void => {
-    console.error(err);
-    res.status(500).send(err.message);
+    if (err instanceof HttpError) {
+      console.log(err.sourceError);
+      res.status(err.status).send(err.message);
+    } else {
+      console.error(err);
+      res.status(500).send(err.message);
+    }
   }
 );
 
@@ -85,22 +95,7 @@ const port = parseInt(process.env.PORT || "3000", 10);
 app.listen(port, async () => {
   console.log(`Listening at port ${port}`);
 
-  await mongoClient.connect();
-  mongodb = mongoClient.db("test-server");
-
-  const userIndexInformation = await mongodb.indexInformation(
-    CONSTANTS.MONGODB_COLLECTION_USER
-  );
-
-  if (userIndexInformation[`${keyof<User>("email")}_1`] === undefined) {
-    await mongodb.createIndex(
-      CONSTANTS.MONGODB_COLLECTION_USER,
-      {
-        [keyof<User>("email")]: 1,
-      },
-      {
-        unique: true,
-      }
-    );
-  }
+  initUserModel({
+    sequelize: sqlClient,
+  });
 });
